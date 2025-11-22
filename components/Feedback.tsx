@@ -6,10 +6,11 @@ interface FeedbackProps {
     isCorrect: boolean;
     targetWord: string;
     userInput: string;
+    hint?: string;
     onNext: () => void;
 }
 
-export default function Feedback({ isCorrect, targetWord, userInput, onNext }: FeedbackProps) {
+export default function Feedback({ isCorrect, targetWord, userInput, hint, onNext }: FeedbackProps) {
 
     // Simple diff logic for visual feedback
     const diffDisplay = useMemo(() => {
@@ -64,6 +65,13 @@ export default function Feedback({ isCorrect, targetWord, userInput, onNext }: F
                             <span className="flex items-center gap-1"><span className="w-2 h-2 bg-yellow-400 rounded-full"></span>Manquant</span>
                             <span className="flex items-center gap-1"><span className="w-2 h-2 bg-red-400 rounded-full"></span>Erreur</span>
                         </div>
+
+                        {hint && (
+                            <div className="mt-6 pt-4 border-t border-gray-100">
+                                <p className="text-xs text-blue-500 font-bold uppercase tracking-wider mb-1">💡 Astuce</p>
+                                <p className="text-sm text-gray-600 italic">"{hint}"</p>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
