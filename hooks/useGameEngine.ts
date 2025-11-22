@@ -16,31 +16,62 @@ function shuffleArray<T>(array: T[]): T[] {
 }
 
 export function useGameEngine() {
-    // State
+    // Game State
     const [deck, setDeck] = useState<string[]>([]);
     const [currentWordId, setCurrentWordId] = useState<string | null>(null);
-
-    const [status, setStatus] = useState<GameStatus>('idle'); // Start in idle
+    const [status, setStatus] = useState<GameStatus>('idle');
     const [userInput, setUserInput] = useState('');
     const [isCorrect, setIsCorrect] = useState(false);
 
+    // Stats
     const [score, setScore] = useState(0);
-    const [highScore, setHighScore] = useState(0); // New High Score
+    const [highScore, setHighScore] = useState(0);
     const [lives, setLives] = useState(3);
-    const [streak, setStreak] = useState(0);
+    const [combo, setCombo] = useState(0); // Renamed 'streak' to 'combo' for in-game
+    const [dailyStreak, setDailyStreak] = useState(0); // New Daily Streak
+
+    // Settings
+    const [settings, setSettings] = useState({
+        soundEnabled: true,
+        voiceSpeed: 1.0 // 0.8 (Slow) to 1.2 (Fast)
+    });
+
     const [isLoaded, setIsLoaded] = useState(false);
 
     // Initialize
     useEffect(() => {
+        // Load Stats
         const savedHighScore = localStorage.getItem('ortho_highscore');
         if (savedHighScore) setHighScore(parseInt(savedHighScore));
 
-        // We don't auto-load the game state in 'idle' mode, only high score
-        // But if we want to resume a game, we could check for saved state
-        const savedDeck = localStorage.getItem('ortho_deck');
-        if (savedDeck && JSON.parse(savedDeck).length > 0) {
-            // Optional: Resume logic could go here, but for now let's stick to clean start or manual resume
-            // For simplicity in this phase, we start at 'idle' unless we implement a "Resume" button
+        // Load Settings
+        const savedSettings = localStorage.getItem('ortho_settings');
+        if (savedSettings) setSettings(JSON.parse(savedSettings));
+
+        // Load Daily Streak Logic
+        const lastPlayedDate = localStorage.getItem('ortho_last_played');
+        const savedDailyStreak = localStorage.getItem('ortho_daily_streak');
+        const today = new Date().toDateString();
+
+        if (savedDailyStreak) {
+            const streakCount = parseInt(savedDailyStreak);
+            if (lastPlayedDate === today) {
+                // Already played today, keep streak
+                setDailyStreak(streakCount);
+            } else {
+                // Check if played yesterday
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+
+                if (lastPlayedDate === yesterday.toDateString()) {
+                    // Played yesterday, streak continues!
+                    // We don't increment here, we increment when they finish a game or answer correctly
+                    setDailyStreak(streakCount);
+                } else {
+                    // Missed a day (or more), reset
+                    setDailyStreak(0);
+                }
+            }
         }
 
         setIsLoaded(true);
@@ -49,28 +80,38 @@ export function useGameEngine() {
     // Save Persistence
     useEffect(() => {
         if (!isLoaded) return;
-        if (status === 'idle') return; // Don't save empty state over good state if idle
 
-        localStorage.setItem('ortho_deck', JSON.stringify(deck));
-        if (currentWordId) localStorage.setItem('ortho_current_id', currentWordId);
+        localStorage.setItem('ortho_settings', JSON.stringify(settings));
+
+        if (status === 'idle') return;
+
         localStorage.setItem('ortho_score', score.toString());
-        localStorage.setItem('ortho_lives', lives.toString());
-        localStorage.setItem('ortho_streak', streak.toString());
+        localStorage.setItem('ortho_highscore', highScore.toString());
 
-        // Update High Score
-        if (score > highScore) {
-            setHighScore(score);
-            localStorage.setItem('ortho_highscore', score.toString());
+        // Update Daily Streak on activity
+        const today = new Date().toDateString();
+        const lastPlayedDate = localStorage.getItem('ortho_last_played');
+
+        if (lastPlayedDate !== today) {
+            // First activity of the day!
+            const newStreak = dailyStreak + 1;
+            setDailyStreak(newStreak);
+            localStorage.setItem('ortho_daily_streak', newStreak.toString());
+            localStorage.setItem('ortho_last_played', today);
         }
-    }, [deck, currentWordId, score, lives, streak, isLoaded, status, highScore]);
+
+    }, [score, highScore, settings, isLoaded, status, dailyStreak]);
 
     const currentWord = words.find(w => w.id === currentWordId) || words[0];
 
+    const updateSettings = (newSettings: Partial<typeof settings>) => {
+        setSettings(prev => ({ ...prev, ...newSettings }));
+    };
+
     const startGame = useCallback(() => {
-        // Reset and Start
         setScore(0);
         setLives(3);
-        setStreak(0);
+        setCombo(0);
 
         const allIds = words.map(w => w.id);
         const shuffled = shuffleArray(allIds);
@@ -91,9 +132,9 @@ export function useGameEngine() {
         setIsCorrect(correct);
 
         if (correct) {
-            setScore(prev => prev + 10 + (streak * 2));
-            setStreak(prev => prev + 1);
-            playSuccess();
+            setScore(prev => prev + 10 + (combo * 2));
+            setCombo(prev => prev + 1);
+            if (settings.soundEnabled) playSuccess();
             confetti({
                 particleCount: 100,
                 spread: 70,
@@ -106,14 +147,14 @@ export function useGameEngine() {
                 if (newLives <= 0) setStatus('gameover');
                 return newLives;
             });
-            setStreak(0);
-            playError();
+            setCombo(0);
+            if (settings.soundEnabled) playError();
         }
 
         if (lives > 0 || correct) {
             setStatus('feedback');
         }
-    }, [currentWord, streak, lives]);
+    }, [currentWord, combo, lives, settings.soundEnabled]);
 
     const nextWord = useCallback(() => {
         if (isCorrect) {
@@ -137,12 +178,7 @@ export function useGameEngine() {
     }, [deck, currentWordId, isCorrect]);
 
     const resetGame = useCallback(() => {
-        setStatus('idle'); // Go back to welcome screen
-        localStorage.removeItem('ortho_deck');
-        localStorage.removeItem('ortho_current_id');
-        localStorage.removeItem('ortho_score');
-        localStorage.removeItem('ortho_lives');
-        localStorage.removeItem('ortho_streak');
+        setStatus('idle');
     }, []);
 
     return {
@@ -152,13 +188,16 @@ export function useGameEngine() {
         userInput,
         isCorrect,
         score,
-        highScore, // Export High Score
+        highScore,
         lives,
-        streak,
+        combo,
+        dailyStreak,
+        settings,
+        updateSettings,
         isLoaded,
         totalWords: words.length,
         remainingWords: deck.length,
-        startGame, // Export Start Action
+        startGame,
         submitAnswer,
         nextWord,
         resetGame

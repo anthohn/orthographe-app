@@ -6,9 +6,10 @@ interface AudioPlayerProps {
     text: string;
     targetWord?: string;
     autoPlay?: boolean;
+    speed?: number;
 }
 
-export default function AudioPlayer({ text, targetWord, autoPlay = false }: AudioPlayerProps) {
+export default function AudioPlayer({ text, targetWord, autoPlay = false, speed = 0.9 }: AudioPlayerProps) {
     const [isPlaying, setIsPlaying] = useState(false);
     const [supported, setSupported] = useState(false);
 
@@ -22,7 +23,7 @@ export default function AudioPlayer({ text, targetWord, autoPlay = false }: Audi
         if (autoPlay && supported) {
             speak();
         }
-    }, [text, targetWord, autoPlay, supported]);
+    }, [text, targetWord, autoPlay, supported, speed]);
 
     const speak = () => {
         if (!supported) return;
@@ -32,7 +33,7 @@ export default function AudioPlayer({ text, targetWord, autoPlay = false }: Audi
         // 1. Speak the context (sentence)
         const sentenceUtterance = new SpeechSynthesisUtterance(text);
         sentenceUtterance.lang = 'fr-FR';
-        sentenceUtterance.rate = 0.9;
+        sentenceUtterance.rate = speed;
         sentenceUtterance.onstart = () => setIsPlaying(true);
 
         if (targetWord) {
@@ -41,7 +42,7 @@ export default function AudioPlayer({ text, targetWord, autoPlay = false }: Audi
                 // Small pause is automatic between utterances in the queue
                 const wordUtterance = new SpeechSynthesisUtterance(targetWord);
                 wordUtterance.lang = 'fr-FR';
-                wordUtterance.rate = 0.8; // Slower for the target word
+                wordUtterance.rate = Math.max(0.5, speed - 0.2); // Target word slightly slower than context
                 wordUtterance.onend = () => setIsPlaying(false);
                 wordUtterance.onerror = () => setIsPlaying(false);
                 window.speechSynthesis.speak(wordUtterance);

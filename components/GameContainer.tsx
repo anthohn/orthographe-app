@@ -1,13 +1,17 @@
 'use client';
 
+import { useState } from 'react';
 import { useGameEngine } from '@/hooks/useGameEngine';
 import AudioPlayer from './AudioPlayer';
 import InputArea from './InputArea';
 import Feedback from './Feedback';
 import HeaderStats from './HeaderStats';
 import WelcomeScreen from './WelcomeScreen';
+import SettingsModal from './SettingsModal';
 
 export default function GameContainer() {
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
     const {
         currentWord,
         currentIndex,
@@ -17,9 +21,11 @@ export default function GameContainer() {
         score,
         highScore,
         lives,
-        streak,
+        combo, // Session streak
+        dailyStreak, // Long term streak
+        settings,
+        updateSettings,
         isLoaded,
-        totalWords,
         remainingWords,
         startGame,
         submitAnswer,
@@ -29,15 +35,37 @@ export default function GameContainer() {
 
     if (!isLoaded) return null;
 
+    // Settings Button (Always visible except in Welcome Screen usually, but let's put it top right)
+    const SettingsButton = () => (
+        <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="absolute top-4 right-4 p-2 bg-white/80 backdrop-blur rounded-full shadow-sm hover:bg-white transition-all z-10 text-gray-400 hover:text-gray-700"
+        >
+            <span className="text-xl">⚙️</span>
+        </button>
+    );
+
     // 1. Idle State -> Welcome Screen
     if (status === 'idle') {
-        return <WelcomeScreen highScore={highScore} onStart={startGame} />;
+        return (
+            <>
+                <SettingsButton />
+                <WelcomeScreen highScore={highScore} onStart={startGame} />
+                <SettingsModal
+                    isOpen={isSettingsOpen}
+                    onClose={() => setIsSettingsOpen(false)}
+                    settings={settings}
+                    onUpdate={updateSettings}
+                />
+            </>
+        );
     }
 
     // 2. Game Over State
     if (status === 'gameover') {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] w-full max-w-md mx-auto p-6 text-center animate-in zoom-in duration-300">
+            <div className="flex flex-col items-center justify-center min-h-[60vh] w-full max-w-md mx-auto p-6 text-center animate-in zoom-in duration-300 relative">
+                <SettingsButton />
                 <div className="text-6xl mb-4">💀</div>
                 <h1 className="text-4xl font-black text-gray-900 mb-2">Game Over</h1>
                 <p className="text-gray-500 mb-8">Tu n'as plus de vies...</p>
@@ -53,6 +81,13 @@ export default function GameContainer() {
                 >
                     Retour à l'accueil
                 </button>
+
+                <SettingsModal
+                    isOpen={isSettingsOpen}
+                    onClose={() => setIsSettingsOpen(false)}
+                    settings={settings}
+                    onUpdate={updateSettings}
+                />
             </div>
         );
     }
@@ -60,7 +95,8 @@ export default function GameContainer() {
     // 3. Victory State
     if (status === 'victory') {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] w-full max-w-md mx-auto p-6 text-center animate-in zoom-in duration-300">
+            <div className="flex flex-col items-center justify-center min-h-[60vh] w-full max-w-md mx-auto p-6 text-center animate-in zoom-in duration-300 relative">
+                <SettingsButton />
                 <div className="text-6xl mb-4">🏆</div>
                 <h1 className="text-4xl font-black text-gray-900 mb-2">Victoire !</h1>
                 <p className="text-gray-500 mb-8">Tu as maîtrisé tous les mots !</p>
@@ -76,13 +112,22 @@ export default function GameContainer() {
                 >
                     Retour à l'accueil
                 </button>
+
+                <SettingsModal
+                    isOpen={isSettingsOpen}
+                    onClose={() => setIsSettingsOpen(false)}
+                    settings={settings}
+                    onUpdate={updateSettings}
+                />
             </div>
         );
     }
 
     // 4. Playing / Feedback State
     return (
-        <div className="flex flex-col items-center justify-start min-h-[80vh] w-full max-w-2xl mx-auto p-4">
+        <div className="flex flex-col items-center justify-start min-h-[80vh] w-full max-w-2xl mx-auto p-4 relative">
+            <SettingsButton />
+
             <div className="mb-6 text-center">
                 <span className="inline-block px-3 py-1 bg-gray-100 rounded-full text-xs font-bold text-gray-500 uppercase tracking-widest">
                     Niveau {currentWord.level} • Reste {remainingWords} mots
@@ -97,6 +142,7 @@ export default function GameContainer() {
                                 text={currentWord.context || currentWord.text}
                                 targetWord={currentWord.text}
                                 autoPlay={true}
+                                speed={settings.voiceSpeed} // Pass setting
                             />
 
                             {currentWord.context ? (
@@ -128,13 +174,21 @@ export default function GameContainer() {
                         isCorrect={isCorrect}
                         targetWord={currentWord.text}
                         userInput={userInput}
-                        hint={currentWord.hint} // Pass the hint
+                        hint={currentWord.hint}
                         onNext={nextWord}
                     />
                 )}
             </div>
 
-            <HeaderStats score={score} lives={lives} streak={streak} />
+            {/* Display Daily Streak instead of session combo for long term engagement */}
+            <HeaderStats score={score} lives={lives} streak={dailyStreak} />
+
+            <SettingsModal
+                isOpen={isSettingsOpen}
+                onClose={() => setIsSettingsOpen(false)}
+                settings={settings}
+                onUpdate={updateSettings}
+            />
         </div>
     );
 }
